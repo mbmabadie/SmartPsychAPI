@@ -1,0 +1,651 @@
+{
+  "info": {
+    "name": "Smart Psych API",
+    "description": "Smart Psych Backend - Auth, Sync, Assessments, Admin Dashboard",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "user_id",
+      "value": "1"
+    },
+    {
+      "key": "assessment_id",
+      "value": "1"
+    },
+    {
+      "key": "rotation_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": "{{base_url}}/health"
+      }
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/register",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"user@test.com\", \"password\": \"123456\", \"full_name\": \"أحمد محمد\", \"age\": 25, \"gender\": \"male\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r=pm.response.json();if(r.success){pm.collectionVariables.set(\"token\",r.data.token);pm.collectionVariables.set(\"user_id\",String(r.data.user.id))}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"user@test.com\", \"password\": \"123456\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r=pm.response.json();if(r.success){pm.collectionVariables.set(\"token\",r.data.token);pm.collectionVariables.set(\"user_id\",String(r.data.user.id))}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login Admin",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/auth/login",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\": \"admin@smartpsych.com\", \"password\": \"admin123\"}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r=pm.response.json();if(r.success)pm.collectionVariables.set(\"admin_token\",r.data.token)"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/auth/profile",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sync",
+      "item": [
+        {
+          "name": "Sync All",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/sync/all",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"activities\": [{\"date\": \"2025-01-15\", \"total_steps\": 8500, \"distance\": 6.2, \"calories_burned\": 340, \"goal_steps\": 10000}], \"sleep_sessions\": [{\"client_id\": 1, \"start_time\": 1705276800000, \"end_time\": 1705305600000, \"duration_minutes\": 480, \"quality_score\": 7.5, \"confidence\": \"confirmed\", \"is_completed\": true}], \"phone_usage\": [{\"date\": \"2025-01-15\", \"app_name\": \"Instagram\", \"package_name\": \"com.instagram.android\", \"total_usage_time\": 45, \"open_count\": 12}]}"
+            }
+          }
+        },
+        {
+          "name": "Sync Activities",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/sync/activity",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"activities\": [{\"date\": \"2025-01-16\", \"total_steps\": 12000, \"distance\": 9.1, \"calories_burned\": 480}]}"
+            }
+          }
+        },
+        {
+          "name": "Sync Sleep",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/sync/sleep",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"sessions\": [{\"client_id\": 2, \"start_time\": 1705363200000, \"end_time\": 1705392000000, \"duration_minutes\": 420, \"confidence\": \"confirmed\", \"is_completed\": true}]}"
+            }
+          }
+        },
+        {
+          "name": "Sync Phone Usage",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/sync/phone-usage",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"usage_data\": [{\"date\": \"2025-01-16\", \"app_name\": \"WhatsApp\", \"package_name\": \"com.whatsapp\", \"total_usage_time\": 30, \"open_count\": 25}]}"
+            }
+          }
+        },
+        {
+          "name": "Sync Location",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/sync/location",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"locations\": [{\"latitude\": 33.89, \"longitude\": 35.5, \"place_name\": \"Home\", \"arrival_time\": 1705276800000, \"is_home\": true}]}"
+            }
+          }
+        },
+        {
+          "name": "Sync Status",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/sync/status",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assessments (User)",
+      "item": [
+        {
+          "name": "Get Active Assessment",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/assessments/active",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Submit Responses",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/assessments/respond",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"rotation_id\": 1, \"responses\": [{\"question_id\": 1, \"selected_option_id\": 3, \"response_value\": 2, \"response_time_seconds\": 5}, {\"question_id\": 2, \"selected_option_id\": 7, \"response_value\": 3}]}"
+            }
+          }
+        },
+        {
+          "name": "My Results",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/assessments/my-results",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Sync Offline Responses",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/assessments/sync-responses",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"sessions\": [{\"client_session_id\": 100, \"rotation_id\": 1, \"total_score\": 15, \"max_possible_score\": 20, \"score_percentage\": 75, \"completed_at\": \"2025-01-15T12:00:00Z\", \"responses\": [{\"question_id\": 1, \"selected_option_id\": 2, \"response_value\": 1}]}]}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Assessments (Admin)",
+      "item": [
+        {
+          "name": "List All",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/assessments/all",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Create Assessment",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/assessments/create",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title\": \"Depression Screening\", \"title_ar\": \"فحص الاكتئاب\", \"category\": \"mental_health\", \"scoring_type\": \"sum\", \"questions\": [{\"question_text\": \"Little interest in doing things\", \"question_text_ar\": \"قلة الاهتمام بالأشياء\", \"options\": [{\"option_text\": \"Not at all\", \"option_text_ar\": \"أبداً\", \"option_value\": 0, \"emoji\": \"😊\"}, {\"option_text\": \"Several days\", \"option_text_ar\": \"عدة أيام\", \"option_value\": 1, \"emoji\": \"😐\"}, {\"option_text\": \"More than half\", \"option_text_ar\": \"أكثر من النصف\", \"option_value\": 2, \"emoji\": \"😔\"}, {\"option_text\": \"Nearly every day\", \"option_text_ar\": \"تقريباً كل يوم\", \"option_value\": 3, \"emoji\": \"😢\"}]}, {\"question_text\": \"Feeling down or hopeless\", \"question_text_ar\": \"الشعور بالحزن أو اليأس\", \"options\": [{\"option_text\": \"Not at all\", \"option_text_ar\": \"أبداً\", \"option_value\": 0, \"emoji\": \"😊\"}, {\"option_text\": \"Several days\", \"option_text_ar\": \"عدة أيام\", \"option_value\": 1, \"emoji\": \"😐\"}, {\"option_text\": \"More than half\", \"option_text_ar\": \"أكثر من النصف\", \"option_value\": 2, \"emoji\": \"😔\"}, {\"option_text\": \"Nearly every day\", \"option_text_ar\": \"تقريباً كل يوم\", \"option_value\": 3, \"emoji\": \"😢\"}]}]}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r=pm.response.json();if(r.success)pm.collectionVariables.set(\"assessment_id\",String(r.data.id))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Assessment Details",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/assessments/{{assessment_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Create Rotation",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/assessments/rotations/create",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"assessment_id\": 1, \"title\": \"الأسبوع الأول\", \"start_date\": \"2025-01-13\", \"end_date\": \"2026-12-31\", \"questions\": [{\"question_id\": 1, \"display_type\": \"emoji_scale\"}, {\"question_id\": 2, \"display_type\": \"card_select\"}]}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const r=pm.response.json();if(r.success)pm.collectionVariables.set(\"rotation_id\",String(r.data.rotation_id))"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Rotations",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/assessments/rotations/list/{{assessment_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Update Assessment",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/assessments/{{assessment_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"title_ar\": \"فحص الاكتئاب المحدث\", \"is_active\": true}"
+            }
+          }
+        },
+        {
+          "name": "Delete Assessment",
+          "request": {
+            "method": "DELETE",
+            "url": "{{base_url}}/assessments/{{assessment_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Dashboard",
+      "item": [
+        {
+          "name": "Dashboard Overview",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/dashboard",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users?page=1&limit=20",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Search Users",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users?search=أحمد",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "User Details",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "User Activities",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}/activities?from=2025-01-01",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "User Sleep",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}/sleep",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "User Phone Usage",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}/phone-usage",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "User Locations",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}/locations",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "User Assessments",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/users/{{user_id}}/assessments",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Toggle User",
+          "request": {
+            "method": "PUT",
+            "url": "{{base_url}}/admin/users/{{user_id}}/toggle",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Activity Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/stats/activity-overview?days=30",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Sleep Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/stats/sleep-overview?days=30",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        },
+        {
+          "name": "Assessment Stats",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/admin/stats/assessment-overview",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

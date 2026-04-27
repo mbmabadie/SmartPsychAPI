@@ -1,0 +1,38 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Environment files (use docker-compose env_file or secrets instead)
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs
+*.log
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Documentation
+README.md
+postman
+
+# Deploy scripts (not needed inside container)
+deploy

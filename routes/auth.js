@@ -1,4 +1,6 @@
 // routes/auth.js
+// 🔍 نسخة تشخيصية - ترجع تفاصيل الأخطاء في الـ response
+// ⚠️ بعد ما نلاقي المشكلة، رجّع النسخة الأصلية للأمان
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -6,6 +8,78 @@ const db = require('../config/database');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
+
+// 🔍 helper مؤقت يطبع تفاصيل الـ error بالـ response
+function debugError(err, label) {
+  console.error(`❌ [${label}]:`, err);
+  return {
+    success: false,
+    message: 'Server error',
+    debug: {
+      label,
+      name: err.name,
+      message: err.message,
+      code: err.code,           // مفيد لـ MySQL errors (ER_BAD_DB_ERROR, ECONNREFUSED, ER_NO_SUCH_TABLE...)
+      sqlMessage: err.sqlMessage,
+      errno: err.errno,
+    },
+  };
+}
+
+// ═══════════════════════════════════════════
+// 🔍 GET /api/auth/health-check - فحص الاتصال بالـ DB
+// ═══════════════════════════════════════════
+router.get('/health-check', async (req, res) => {
+  const checks = {
+    db_connection: 'unknown',
+    users_table_exists: 'unknown',
+    users_columns: [],
+    user_count: null,
+    jwt_secret_set: !!process.env.JWT_SECRET,
+    jwt_expires_in_set: !!process.env.JWT_EXPIRES_IN,
+    node_env: process.env.NODE_ENV,
+    db_config: {
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      user: process.env.DB_USER,
+      password_set: !!process.env.DB_PASSWORD && process.env.DB_PASSWORD.length > 0,
+      database: process.env.DB_NAME,
+    },
+  };
+
+  try {
+    // 1. اتصال بالـ DB
+    await db.query('SELECT 1');
+    checks.db_connection = 'ok';
+
+    // 2. هل جدول users موجود
+    const [tables] = await db.query("SHOW TABLES LIKE 'users'");
+    checks.users_table_exists = tables.length > 0 ? 'ok' : 'missing';
+
+    if (tables.length > 0) {
+      // 3. أعمدة الجدول
+      const [cols] = await db.query('SHOW COLUMNS FROM users');
+      checks.users_columns = cols.map(c => c.Field);
+
+      // 4. عدد المستخدمين
+      const [count] = await db.query('SELECT COUNT(*) AS c FROM users');
+      checks.user_count = count[0].c;
+    }
+
+    return res.json({ success: true, checks });
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      checks,
+      error: {
+        name: err.name,
+        message: err.message,
+        code: err.code,
+        sqlMessage: err.sqlMessage,
+      },
+    });
+  }
+});
 
 // ═══════════════════════════════════════════
 // POST /api/auth/register
@@ -18,20 +92,16 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email, password and name are required' });
     }
 
-    // فحص إذا الإيميل موجود
     const [existing] = await db.query(
       'SELECT id, is_active FROM users WHERE email = ?',
       [email]
     );
 
     if (existing.length) {
-      // إذا الحساب نشط → رفض
       if (existing[0].is_active) {
         return res.status(409).json({ success: false, message: 'Email already registered' });
       }
 
-      // إذا الحساب معطّل (محذوف سابقاً) → إعادة تفعيل بياناته الجديدة
-      // المستخدم يحس إنه أنشأ حساب جديد، لكنه فعلياً نفس الحساب
       const hash = await bcrypt.hash(password, 10);
       await db.query(
         'UPDATE users SET password_hash = ?, full_name = ?, age = ?, gender = ?, is_active = 1, last_login_at = NOW() WHERE id = ?',
@@ -49,7 +119,6 @@ router.post('/register', async (req, res) => {
       });
     }
 
-    // حساب جديد
     const hash = await bcrypt.hash(password, 10);
     const [result] = await db.query(
       'INSERT INTO users (email, password_hash, full_name, age, gender) VALUES (?, ?, ?, ?, ?)',
@@ -66,8 +135,7 @@ router.post('/register', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Register error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json(debugError(err, 'register'));
   }
 });
 
@@ -109,8 +177,7 @@ router.post('/login', async (req, res) => {
       },
     });
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json(debugError(err, 'login'));
   }
 });
 
@@ -125,7 +192,7 @@ router.get('/profile', auth, async (req, res) => {
     );
     res.json({ success: true, data: rows[0] });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json(debugError(err, 'profile-get'));
   }
 });
 
@@ -141,22 +208,19 @@ router.put('/profile', auth, async (req, res) => {
     );
     res.json({ success: true, message: 'Profile updated' });
   } catch (err) {
-    res.status(500).json({ success: false, message: 'Server error' });
+    res.status(500).json(debugError(err, 'profile-put'));
   }
 });
 
 // ═══════════════════════════════════════════
-// DELETE /api/auth/account - حذف الحساب (soft delete)
+// DELETE /api/auth/account - حذف منطقي
 // ═══════════════════════════════════════════
-// ملاحظة: هذا حذف منطقي فقط - يعطّل الحساب ويحتفظ بالبيانات
-// إذا المستخدم سجل بنفس الإيميل لاحقاً، الحساب يُعاد تفعيله بالبيانات الجديدة
 router.delete('/account', auth, async (req, res) => {
   try {
     await db.query('UPDATE users SET is_active = 0 WHERE id = ?', [req.user.id]);
     res.json({ success: true, message: 'Account deleted' });
   } catch (err) {
-    console.error('Delete account error:', err);
-    res.status(500).json({ success: false, message: 'Error deleting account' });
+    res.status(500).json(debugError(err, 'delete-account'));
   }
 });
 

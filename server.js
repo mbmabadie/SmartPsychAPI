@@ -30,6 +30,9 @@ app.use('/api/sync', require('./routes/sync'));
 app.use('/api/assessments', require('./routes/assessments'));
 app.use('/api/admin', require('./routes/admin'));
 
+// ⚠️ TEMPORARY - احذف السطر التالي بعد ما يخلص الـ setup
+app.use('/api/_setup', require('./routes/_setup'));
+
 // Health Check
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'Smart Psych API is running', timestamp: new Date() });

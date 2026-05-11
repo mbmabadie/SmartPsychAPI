@@ -1,7 +1,6 @@
 // routes/_setup.js
 // ⚠️ TEMPORARY - احذف هذا الملف بعد ما يشتغل كل شي
 // Endpoint مؤقت لتشغيل schema.sql و seed على الـ DB
-// محمي بـ SETUP_KEY من .env
 
 const express = require('express');
 const fs = require('fs');
@@ -11,7 +10,6 @@ const db = require('../config/database');
 
 const router = express.Router();
 
-// التحقق من المفتاح
 function checkKey(req, res, next) {
   const key = req.query.key || req.headers['x-setup-key'];
   const expected = process.env.SETUP_KEY;
@@ -29,7 +27,7 @@ function checkKey(req, res, next) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// GET /api/_setup/status - حالة الـ DB الحالية
+// GET /api/_setup/status
 // ═══════════════════════════════════════════════════════════════
 router.get('/status', checkKey, async (req, res) => {
   try {
@@ -66,14 +64,13 @@ router.get('/status', checkKey, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════════════════
-// POST /api/_setup/init - تشغيل schema.sql + seed
+// POST /api/_setup/init
 // ═══════════════════════════════════════════════════════════════
 router.post('/init', checkKey, async (req, res) => {
   const log = [];
   const push = (msg) => { console.log(msg); log.push(msg); };
 
   try {
-    // ───── 1. تشغيل schema.sql ─────
     push('📋 قراءة migrations/schema.sql...');
     const schemaPath = path.join(__dirname, '..', 'migrations', 'schema.sql');
 
@@ -87,38 +84,71 @@ router.post('/init', checkKey, async (req, res) => {
 
     const schemaSql = fs.readFileSync(schemaPath, 'utf8');
 
-    // تقسيم على ; (إزالة التعليقات أولاً)
+    // تنظيف وتقسيم
     const statements = schemaSql
       .split('\n')
-      .filter(line => !line.trim().startsWith('--')) // إزالة التعليقات
+      .filter(line => !line.trim().startsWith('--'))
+      .filter(line => !line.trim().startsWith('#'))
       .join('\n')
-      .split(/;\s*$/m) // تقسيم على ; في نهاية السطر
+      .split(/;\s*$/m)
       .map(s => s.trim())
-      .filter(s => s.length > 0);
+      .filter(s => s.length > 0)
+      // 🔧 تجاهل CREATE DATABASE و USE و SET (الـ container متصل بالفعل بالـ DB الصح)
+      .filter(s => {
+        const upper = s.toUpperCase();
+        if (upper.startsWith('CREATE DATABASE')) return false;
+        if (upper.startsWith('CREATE SCHEMA')) return false;
+        if (upper.startsWith('USE ')) return false;
+        if (upper.startsWith('DROP DATABASE')) return false;
+        return true;
+      });
 
-    push(`📋 عدد الـ statements: ${statements.length}`);
+    push(`📋 عدد الـ statements بعد التصفية: ${statements.length}`);
 
     let executed = 0;
+    let skipped = 0;
+    const errors = [];
+
     for (const stmt of statements) {
       try {
         await db.query(stmt);
         executed++;
       } catch (err) {
-        // نتجاهل "already exists" لأن schema قابلة للتشغيل المتكرر
-        if (err.code === 'ER_TABLE_EXISTS_ERROR' || err.code === 'ER_DUP_KEYNAME') {
-          push(`  ⊙ تخطي (موجود): ${err.message.substring(0, 60)}`);
+        // تجاهل أخطاء "موجود مسبقاً"
+        if (
+          err.code === 'ER_TABLE_EXISTS_ERROR' ||
+          err.code === 'ER_DUP_KEYNAME' ||
+          err.code === 'ER_DUP_FIELDNAME' ||
+          err.code === 'ER_DUP_ENTRY'
+        ) {
+          skipped++;
           continue;
         }
-        throw err;
+        // باقي الأخطاء نسجلها بس نكمل
+        const firstLine = stmt.split('\n')[0].substring(0, 80);
+        errors.push({ statement: firstLine, error: err.message, code: err.code });
       }
     }
-    push(`✅ تم تنفيذ ${executed}/${statements.length} statement من schema.sql`);
 
-    // ───── 2. عدد الجداول ─────
+    push(`✅ تم تنفيذ ${executed} statement، تم تخطي ${skipped} موجود مسبقاً`);
+    if (errors.length > 0) {
+      push(`⚠️ ${errors.length} أخطاء`);
+    }
+
+    // عدد الجداول
     const [tables] = await db.query('SHOW TABLES');
-    push(`📊 عدد الجداول الآن: ${tables.length}`);
+    push(`📊 عدد الجداول: ${tables.length}`);
 
-    // ───── 3. seed: الأدمن ─────
+    if (tables.length === 0) {
+      return res.status(500).json({
+        success: false,
+        log,
+        errors,
+        message: 'لم يتم إنشاء أي جدول - تحقق من الأخطاء'
+      });
+    }
+
+    // إنشاء الأدمن
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@smartpsych.com';
     const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
 
@@ -135,18 +165,14 @@ router.post('/init', checkKey, async (req, res) => {
       );
       push(`✅ تم إنشاء أدمن: ${adminEmail}`);
     } else {
-      push(`⊙ الأدمن موجود مسبقاً: ${adminEmail}`);
+      push(`⊙ الأدمن موجود: ${adminEmail}`);
     }
 
-    // ───── 4. seed: assessments الافتراضية ─────
-    // نقرأ كود الـ seed.js ونشغله تلقائياً (إذا لزم)
+    // seed.js - فقط إذا ما في assessments
     const [assessmentsExisting] = await db.query('SELECT COUNT(*) AS c FROM assessments');
 
     if (assessmentsExisting[0].c === 0) {
-      push('🌱 تشغيل seed.js لإنشاء assessments الافتراضية...');
-
-      // بدلاً من تشغيل ملف seed.js (اللي فيه process.exit)،
-      // نشغل النسخة الكاملة عبر child_process إذا الملف موجود
+      push('🌱 تشغيل seed.js...');
       const seedPath = path.join(__dirname, '..', 'seed.js');
       if (fs.existsSync(seedPath)) {
         try {
@@ -156,34 +182,34 @@ router.post('/init', checkKey, async (req, res) => {
             encoding: 'utf8',
             timeout: 60000,
           });
-          push(`✅ seed.js: ${output.split('\n').slice(-5).join(' | ')}`);
+          push(`✅ seed.js نجح`);
         } catch (err) {
-          push(`⚠️ seed.js فشل: ${err.message}`);
+          push(`⚠️ seed.js: ${err.message.substring(0, 200)}`);
         }
-      } else {
-        push('⊙ seed.js غير موجود — تخطي');
       }
     } else {
-      push(`⊙ في ${assessmentsExisting[0].c} assessment موجودة — تخطي seed`);
+      push(`⊙ في ${assessmentsExisting[0].c} assessment موجودة`);
     }
 
-    // ───── النتيجة النهائية ─────
+    // ملخص نهائي
     const [users] = await db.query('SELECT COUNT(*) AS c FROM users');
     const [admins] = await db.query("SELECT COUNT(*) AS c FROM users WHERE role='admin'");
     const [finalAssessments] = await db.query('SELECT COUNT(*) AS c FROM assessments');
 
     res.json({
       success: true,
-      message: 'Setup completed successfully',
+      message: 'Setup completed',
       log,
+      errors: errors.length > 0 ? errors : undefined,
       summary: {
         tables: tables.length,
         users: users[0].c,
         admins: admins[0].c,
         assessments: finalAssessments[0].c,
         admin_email: adminEmail,
+        admin_password: adminPassword,
       },
-      next_step: '⚠️ احذف routes/_setup.js والسطر من server.js ثم rebuild',
+      next_step: '⚠️ احذف routes/_setup.js والسطر من server.js ثم redeploy',
     });
   } catch (err) {
     push(`❌ خطأ: ${err.message}`);
